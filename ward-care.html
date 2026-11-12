@@ -54,7 +54,7 @@ svg text{fill:var(--mu);font-size:10px}
 <script>
 const TH=38,CAP=74,BM=.15,TK='wc_tok';
 const CAN={temp:['nurse'],visit:['doctor'],confirm:['doctor'],death:['doctor','admin'],admit:['admin'],disch:['admin'],amend:['nurse','doctor'],manageUsers:['admin']};
-let CUR=null,S=null,tab='work',M=null,q='',pf='active',gf='',af='',ps='bed',repDate='',repData=null,busy=false,tok='',es=null,pendingSync=false;
+let CUR=null,S=null,tab='work',M=null,q='',pf='active',gf='',af='',ps='bed',repDate='',repData=null,busy=false,tok='',es=null,pollT=null,pendingSync=false;
 try{tok=localStorage.getItem(TK)||''}catch(e){}
 const U=()=>CUR,can=a=>Boolean(CUR&&CAN[a].includes(CUR.r));
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -64,24 +64,33 @@ const dd=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
 const $=i=>document.getElementById(i);
 function setSync(ok,msg){const e=$('sy');if(!e)return;e.textContent=msg||(ok?'● Live':'Offline');e.className='tg '+(ok?'o':'f')}
 function saveTok(t){tok=t||'';try{if(tok)localStorage.setItem(TK,tok);else localStorage.removeItem(TK)}catch(e){}}
-function closeEvents(){if(es){es.close();es=null}}
+function closeEvents(){if(es){es.close();es=null}if(pollT){clearInterval(pollT);pollT=null}}
 function hasUnsavedInput(){
  if($('dg').innerHTML)return true;
  const ae=document.activeElement;
  return Boolean(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&ae.getAttribute('aria-label')!=='Search'&&ae.value);
 }
+function startPolling(){
+ setSync(true,'● Synced');
+ if(pollT)clearInterval(pollT);
+ pollT=setInterval(()=>{if(CUR&&!busy&&!hasUnsavedInput())api('GET','/api/state').then(()=>R(1)).catch(()=>{})},15000);
+}
 function connectEvents(){
  closeEvents();
- if(!CUR||typeof EventSource==='undefined')return;
+ if(!CUR||typeof EventSource==='undefined'){if(CUR)startPolling();return}
  const url='/api/events'+(tok?'?token='+encodeURIComponent(tok):'');
  es=new EventSource(url);
- es.addEventListener('ready',()=>setSync(true,'● Live'));
+ es.addEventListener('ready',ev=>{
+  let m='sse';try{m=JSON.parse(ev.data).mode||'sse'}catch(e){}
+  if(m==='poll'){if(es){es.close();es=null}startPolling();return}
+  setSync(true,'● Live');
+ });
  es.addEventListener('update',ev=>{
   try{S=JSON.parse(ev.data)}catch(e){return}
   if(busy||hasUnsavedInput()){pendingSync=true;return}
   pendingSync=false;R(1);
  });
- es.onerror=()=>{if(CUR)setSync(false,'Reconnecting…')};
+ es.onerror=()=>{if(CUR&&!pollT)setSync(false,'Reconnecting…')};
 }
 document.addEventListener('focusout',()=>{if(pendingSync&&!busy&&!hasUnsavedInput()){pendingSync=false;setTimeout(()=>R(1),50)}});
 async function api(method,path,body){

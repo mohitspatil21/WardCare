@@ -40,7 +40,10 @@ export class AppError extends Error {
 
 /** SQLite-backed persistence store with bounded past-data retention for WardCare. */
 export class WardStore {
-  constructor(dbPath = './ward-care.db', { seed = true } = {}) {
+  constructor(
+    dbPath = process.env.WARD_DB || (process.env.VERCEL ? '/tmp/ward-care.db' : './ward-care.db'),
+    { seed = true } = {}
+  ) {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
     this.#initSchema();

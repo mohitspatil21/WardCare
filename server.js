@@ -21,6 +21,14 @@ function sendJson(res, status, data, extraHeaders = {}) {
 }
 
 function readJsonBody(req) {
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'object') return Promise.resolve(req.body);
+    try {
+      return Promise.resolve(JSON.parse(String(req.body) || '{}'));
+    } catch {
+      return Promise.reject(new AppError(400, 'Invalid JSON body'));
+    }
+  }
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -73,8 +81,12 @@ function requireRole(user, action) {
   }
 }
 
-/** Create the WardCare HTTP server with SQLite persistence and real-time SSE updates. */
-export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__dirname, 'ward-care.db'), seed = true } = {}) {
+/** Create the WardCare request handler with SQLite persistence and optional SSE/timer support. */
+export function createAppHandler({
+  dbPath = process.env.WARD_DB || (process.env.VERCEL ? '/tmp/ward-care.db' : path.join(__dirname, 'ward-care.db')),
+  seed = true,
+  enableTimers = !process.env.VERCEL,
+} = {}) {
   const store = new WardStore(dbPath, { seed });
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const sseClients = new Set();
@@ -92,23 +104,29 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
     }
   }
 
-  const keepalive = setInterval(() => {
-    for (const client of sseClients) {
-      client.res.write(': keepalive\n\n');
-    }
-  }, 25000);
-  keepalive.unref();
+  let keepalive = null;
+  let reminderTimer = null;
+  if (enableTimers) {
+    keepalive = setInterval(() => {
+      for (const client of sseClients) {
+        client.res.write(': keepalive\n\n');
+      }
+    }, 25000);
+    keepalive.unref();
 
-  const reminderTimer = setInterval(() => {
-    store.syncAutomatedReminders();
-    broadcastUpdate();
-  }, 60000);
-  reminderTimer.unref();
+    reminderTimer = setInterval(() => {
+      store.syncAutomatedReminders();
+      broadcastUpdate();
+    }, 60000);
+    reminderTimer.unref();
+  }
 
-  const server = http.createServer(async (req, res) => {
+  const handler = async (req, res) => {
     const url = new URL(req.url || '/', 'http://localhost');
     const pathname = url.pathname;
     const method = req.method || 'GET';
+    const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted;
+    const cookieSec = isHttps ? '; Secure' : '';
 
     try {
       if (method === 'GET' && (pathname === '/' || pathname === '/ward-care.html')) {
@@ -128,13 +146,13 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
         const user = store.authenticate(body.username, body.password);
         if (!user) throw new AppError(401, 'Invalid username or password');
         const token = store.createSession(user.username);
-        const cookie = `${COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/`;
+        const cookie = `${COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/${cookieSec}`;
         return sendJson(res, 200, { user, token, state: store.getState(user.r) }, { 'Set-Cookie': cookie });
       }
 
       if (method === 'POST' && pathname === '/api/logout') {
         store.deleteSession(extractToken(req, url));
-        const clearCookie = `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+        const clearCookie = `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${cookieSec}`;
         return sendJson(res, 200, { ok: true }, { 'Set-Cookie': clearCookie });
       }
 
@@ -143,11 +161,15 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
         res.writeHead(200, {
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',
-          Connection: 'keep-alive',
+          Connection: enableTimers ? 'keep-alive' : 'close',
         });
+        if (!enableTimers) {
+          res.end(`event: ready\ndata: ${JSON.stringify({ ok: true, mode: 'poll' })}\n\n`);
+          return;
+        }
         const client = { res, role: user.r };
         sseClients.add(client);
-        res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+        res.write(`event: ready\ndata: ${JSON.stringify({ ok: true, mode: 'sse' })}\n\n`);
         req.on('close', () => sseClients.delete(client));
         return;
       }
@@ -307,16 +329,24 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
       console.error(err);
       sendJson(res, 500, { error: 'Internal server error' });
     }
-  });
+  };
 
-  server.on('close', () => {
-    clearInterval(keepalive);
-    clearInterval(reminderTimer);
+  function close() {
+    if (keepalive) clearInterval(keepalive);
+    if (reminderTimer) clearInterval(reminderTimer);
     for (const client of sseClients) client.res.end();
     sseClients.clear();
     store.close();
-  });
+  }
 
+  return { store, handler, close };
+}
+
+/** Create an HTTP server wrapping the WardCare request handler for standalone Node hosting. */
+export function createAppServer(opts = {}) {
+  const { store, handler, close } = createAppHandler(opts);
+  const server = http.createServer(handler);
+  server.on('close', close);
   return { server, store };
 }
 

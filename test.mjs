@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
-import { createAppServer } from './server.js';
+import { createAppHandler, createAppServer } from './server.js';
 import { MAX_PAST_RECORDS, bk, td } from './ward-logic.mjs';
 
 function tmpDbPath() {
@@ -265,6 +265,57 @@ test('Default initial ward seeding populates dashboard, queues, and benchmarks',
     assert.ok(nurseState.data.notifications.some((n) => n.kind === 'reminder'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { fs.unlinkSync(dbPath + suffix); } catch {}
+    }
+  }
+});
+
+test('Serverless handler supports pre-parsed bodies, HTTPS cookies, and polling-mode /api/events', async () => {
+  const dbPath = tmpDbPath();
+  const app = createAppHandler({ dbPath, enableTimers: false });
+  function mockRes() {
+    let status = 200;
+    let headers = {};
+    const chunks = [];
+    return {
+      writeHead(s, h = {}) { status = s; headers = h; },
+      write(c) { chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(String(c))); },
+      end(c) { if (c !== undefined) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(String(c))); },
+      result() { return { status, headers, body: Buffer.concat(chunks).toString('utf8') }; },
+    };
+  }
+  try {
+    const loginRes = mockRes();
+    await app.handler(
+      {
+        method: 'POST',
+        url: '/api/login',
+        headers: { 'x-forwarded-proto': 'https' },
+        body: { username: 'sunita', password: 'admin123' },
+      },
+      loginRes
+    );
+    const loginOut = loginRes.result();
+    assert.equal(loginOut.status, 200);
+    assert.match(loginOut.headers['Set-Cookie'], /Secure/);
+    const parsed = JSON.parse(loginOut.body);
+    assert.equal(parsed.user.r, 'admin');
+
+    const evtRes = mockRes();
+    await app.handler(
+      {
+        method: 'GET',
+        url: `/api/events?token=${encodeURIComponent(parsed.token)}`,
+        headers: {},
+      },
+      evtRes
+    );
+    const evtOut = evtRes.result();
+    assert.equal(evtOut.status, 200);
+    assert.match(evtOut.body, /"mode":"poll"/);
+  } finally {
+    app.close();
     for (const suffix of ['', '-wal', '-shm']) {
       try { fs.unlinkSync(dbPath + suffix); } catch {}
     }

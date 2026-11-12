@@ -142,6 +142,78 @@ test('Real-time SSE, DB persistence, RBAC, clinical workflow, and limited past-d
     assert.ok(postPrune.data.stats.retainedPast <= MAX_PAST_RECORDS);
     assert.equal(postPrune.data.stats.s, 61); // 1 Asha + 60 Past
     assert.equal(postPrune.data.stats.d, 1);  // 1 Mohan
+
+    // 7. Phase 2: Automated reminders, advanced analytics, daily report & Excel/PDF export
+    const admit3 = await reqJson(baseUrl, 'POST', '/api/patients', adminAuth.token, {
+      name: 'Kavita Nair',
+      age: 34,
+      g: 'F',
+      phone: '555-0199',
+    });
+    assert.equal(admit3.status, 201);
+    const p3 = admit3.data.patient;
+
+    // Nurse sees automated reminder for pending temperature
+    const nurseRemState = await reqJson(baseUrl, 'GET', '/api/state', nurseAuth.token);
+    assert.ok(
+      nurseRemState.data.notifications.some((n) => n.kind === 'reminder' && /temperature/i.test(n.message)),
+      'Expected automated pending temperature reminder for nurse'
+    );
+
+    // Record temperature -> nurse pending-temp reminder auto-resolves, doctor visit reminder appears
+    assert.equal((await reqJson(baseUrl, 'POST', `/api/patients/${p3.id}/temperatures`, nurseAuth.token, { c: 38.4 })).status, 201);
+    const nurseAfterTemp = await reqJson(baseUrl, 'GET', '/api/state', nurseAuth.token);
+    assert.ok(
+      !nurseAfterTemp.data.notifications.some((n) => n.kind === 'reminder' && /temperature/i.test(n.message)),
+      'Expected nurse pending temperature reminder to auto-resolve'
+    );
+    const docRemState = await reqJson(baseUrl, 'GET', '/api/state', patelAuth.token);
+    assert.ok(
+      docRemState.data.notifications.some((n) => n.kind === 'reminder' && /ready for doctor visit/i.test(n.message)),
+      'Expected automated ready-for-visit reminder for doctor'
+    );
+
+    // Doctor visits -> ready-for-visit reminder auto-resolves
+    assert.equal((await reqJson(baseUrl, 'POST', `/api/patients/${p3.id}/visits`, patelAuth.token, { note: 'Fever noted' })).status, 201);
+    const docAfterVisit = await reqJson(baseUrl, 'GET', '/api/state', patelAuth.token);
+    assert.ok(
+      !docAfterVisit.data.notifications.some((n) => n.kind === 'reminder' && /ready for doctor visit/i.test(n.message)),
+      'Expected ready-for-visit reminder to auto-resolve after doctor visit'
+    );
+
+    // Advanced analytics endpoint
+    const anRes = await reqJson(baseUrl, 'GET', '/api/analytics', adminAuth.token);
+    assert.equal(anRes.status, 200);
+    assert.equal(anRes.data.dailyTrend.length, 14);
+    assert.equal(anRes.data.ageCohorts.length, 4);
+    assert.equal(anRes.data.tempCompliance, 1);
+    assert.equal(anRes.data.visitCompliance, 1);
+
+    // Daily performance report JSON
+    const repRes = await reqJson(baseUrl, 'GET', `/api/reports/daily?date=${td()}`, adminAuth.token);
+    assert.equal(repRes.status, 200);
+    assert.equal(repRes.data.summary.occupied, 5);
+    assert.equal(repRes.data.summary.admissions, 3);
+    assert.ok(repRes.data.rows.some((r) => r.name === 'Kavita Nair' && r.temp === 38.4));
+
+    // Excel export
+    const xlsRes = await fetch(`${baseUrl}/api/reports/daily/export?format=excel&date=${td()}`, {
+      headers: { Authorization: `Bearer ${adminAuth.token}` },
+    });
+    assert.equal(xlsRes.status, 200);
+    assert.ok((xlsRes.headers.get('content-type') || '').includes('excel'));
+    const xlsText = await xlsRes.text();
+    assert.ok(xlsText.includes('<Workbook') && xlsText.includes('Kavita Nair'));
+
+    // PDF export
+    const pdfRes = await fetch(`${baseUrl}/api/reports/daily/export?format=pdf&date=${td()}`, {
+      headers: { Authorization: `Bearer ${adminAuth.token}` },
+    });
+    assert.equal(pdfRes.status, 200);
+    assert.equal(pdfRes.headers.get('content-type'), 'application/pdf');
+    const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+    const pdfStr = pdfBuf.toString('latin1');
+    assert.ok(pdfStr.startsWith('%PDF-1.4') && pdfStr.includes('%%EOF') && pdfStr.includes('Kavita Nair'));
   } finally {
     sseAbort.abort();
     await new Promise((resolve) => server.close(resolve));

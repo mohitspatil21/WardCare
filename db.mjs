@@ -8,6 +8,8 @@ import {
   PAST_RETENTION_DAYS,
   TH,
   bk,
+  computeAnalytics,
+  computeDailyReport,
   computeStats,
   findFreeBed,
   hashPassword,
@@ -104,6 +106,7 @@ export class WardStore {
         patient_id INTEGER,
         kind TEXT NOT NULL,
         message TEXT NOT NULL,
+        dedup_key TEXT,
         created_at INTEGER NOT NULL,
         is_read INTEGER NOT NULL DEFAULT 0
       );
@@ -118,6 +121,8 @@ export class WardStore {
     if (!cols.has('gender')) this.db.exec("ALTER TABLE patients ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
     if (!cols.has('phone')) this.db.exec("ALTER TABLE patients ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
     if (!cols.has('notes')) this.db.exec("ALTER TABLE patients ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+    const nCols = new Set(this.db.prepare('PRAGMA table_info(notifications)').all().map((c) => c.name));
+    if (!nCols.has('dedup_key')) this.db.exec('ALTER TABLE notifications ADD COLUMN dedup_key TEXT');
     this.db.exec("INSERT OR IGNORE INTO ward_archive (key, val) VALUES ('disch', 0), ('dead', 0);");
   }
 
@@ -312,10 +317,73 @@ export class WardStore {
     }));
   }
 
-  /** Return full real-time ward state (patients, audit log, stats, retention policy, notifications). */
+  /** Synchronize automated daily reminders for pending nurse temps, doctor visits, approvals, and discharges. */
+  syncAutomatedReminders(patients = null) {
+    const p = patients ?? this.#hydratePatients(this.db.prepare('SELECT * FROM patients ORDER BY id ASC').all());
+    const today = td();
+    const active = p.filter((x) => x.st === 'active');
+    const pendingTemps = active.filter((x) => !tod(x, today).length);
+    const readyVisits = active.filter((x) => tod(x, today).length && !vis(x, today));
+    const awaitApprove = active.filter((x) => rdy(x) && !x.conf);
+    const readyDisch = active.filter((x) => rdy(x) && x.conf);
+
+    const specs = [
+      {
+        role: 'nurse',
+        kind: 'reminder',
+        key: `${today}:nurse:temp`,
+        count: pendingTemps.length,
+        msg: `Reminder: ${pendingTemps.length} patient(s) still awaiting today's temperature check (e.g. Bed ${pendingTemps.slice(0, 5).map((x) => x.bed).join(', ')}).`,
+      },
+      {
+        role: 'doctor',
+        kind: 'reminder',
+        key: `${today}:doctor:visit`,
+        count: readyVisits.length,
+        msg: `Reminder: ${readyVisits.length} measured patient(s) ready for doctor visit today.`,
+      },
+      {
+        role: 'doctor',
+        kind: 'reminder',
+        key: `${today}:doctor:approve`,
+        count: awaitApprove.length,
+        msg: `Reminder: ${awaitApprove.length} patient(s) have 3 fever-free days awaiting discharge approval.`,
+      },
+      {
+        role: 'admin',
+        kind: 'reminder',
+        key: `${today}:admin:disch`,
+        count: readyDisch.length,
+        msg: `Reminder: ${readyDisch.length} doctor-approved patient(s) waiting to be discharged.`,
+      },
+    ];
+
+    const findStmt = this.db.prepare('SELECT id, message, is_read FROM notifications WHERE dedup_key = ?');
+    const insStmt = this.db.prepare(
+      'INSERT INTO notifications (role, patient_id, kind, message, dedup_key, created_at) VALUES (?, NULL, ?, ?, ?, ?)'
+    );
+    const updStmt = this.db.prepare('UPDATE notifications SET message = ? WHERE id = ?');
+    const resolveStmt = this.db.prepare('UPDATE notifications SET is_read = 1, dedup_key = NULL WHERE dedup_key = ?');
+
+    for (const sp of specs) {
+      if (sp.count === 0) {
+        resolveStmt.run(sp.key);
+        continue;
+      }
+      const existing = findStmt.get(sp.key);
+      if (!existing) {
+        insStmt.run(sp.role, sp.kind, sp.msg, sp.key, Date.now());
+      } else if (!existing.is_read && existing.message !== sp.msg) {
+        updStmt.run(sp.msg, existing.id);
+      }
+    }
+  }
+
+  /** Return full real-time ward state (patients, audit log, stats, analytics, retention policy, notifications). */
   getState(role = null) {
     const pRows = this.db.prepare('SELECT * FROM patients ORDER BY id ASC').all();
     const p = this.#hydratePatients(pRows);
+    this.syncAutomatedReminders(p);
     const log = this.db
       .prepare('SELECT ts, u, a FROM audit_log ORDER BY id DESC LIMIT ?')
       .all(MAX_AUDIT_LOGS);
@@ -330,10 +398,18 @@ export class WardStore {
       p,
       log,
       stats: computeStats(p, archive),
+      analytics: computeAnalytics(p, archive),
       notifications,
       retention: { days: PAST_RETENTION_DAYS, maxPast: MAX_PAST_RECORDS },
       ...(staff ? { staff } : {}),
     };
+  }
+
+  /** Compute daily performance report for the given YYYY-MM-DD date. */
+  getDailyReport(date = td()) {
+    const pRows = this.db.prepare('SELECT * FROM patients ORDER BY id ASC').all();
+    const p = this.#hydratePatients(pRows);
+    return computeDailyReport(p, date, this.#getArchive());
   }
 
   /** Return a single hydrated patient by ID, or null if not found. */

@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppError, WardStore } from './db.mjs';
-import { CAP, canRole } from './ward-logic.mjs';
+import { CAP, buildExcelReport, buildPdfReport, canRole, td } from './ward-logic.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HTML_PATH = path.join(__dirname, 'ward-care.html');
@@ -99,6 +99,12 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
   }, 25000);
   keepalive.unref();
 
+  const reminderTimer = setInterval(() => {
+    store.syncAutomatedReminders();
+    broadcastUpdate();
+  }, 60000);
+  reminderTimer.unref();
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', 'http://localhost');
     const pathname = url.pathname;
@@ -159,6 +165,45 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
       if (method === 'GET' && pathname === '/api/stats') {
         const user = getActor(req, store, url);
         return sendJson(res, 200, store.getState(user.r).stats);
+      }
+
+      if (method === 'GET' && pathname === '/api/analytics') {
+        const user = getActor(req, store, url);
+        return sendJson(res, 200, store.getState(user.r).analytics);
+      }
+
+      if (method === 'GET' && pathname === '/api/reports/daily') {
+        getActor(req, store, url);
+        const date = url.searchParams.get('date') || td();
+        return sendJson(res, 200, store.getDailyReport(date));
+      }
+
+      if (method === 'GET' && pathname === '/api/reports/daily/export') {
+        getActor(req, store, url);
+        const date = url.searchParams.get('date') || td();
+        const format = (url.searchParams.get('format') || 'excel').toLowerCase();
+        const report = store.getDailyReport(date);
+        if (format === 'pdf') {
+          const pdfBuf = buildPdfReport(report);
+          res.writeHead(200, {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="wardcare-report-${report.date}.pdf"`,
+            'Content-Length': pdfBuf.length,
+            'Cache-Control': 'no-store',
+          });
+          res.end(pdfBuf);
+          return;
+        }
+        const xls = buildExcelReport(report);
+        const xlsBuf = Buffer.from(xls, 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+          'Content-Disposition': `attachment; filename="wardcare-report-${report.date}.xls"`,
+          'Content-Length': xlsBuf.length,
+          'Cache-Control': 'no-store',
+        });
+        res.end(xlsBuf);
+        return;
       }
 
       if (method === 'GET' && pathname === '/api/users') {
@@ -266,6 +311,7 @@ export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__di
 
   server.on('close', () => {
     clearInterval(keepalive);
+    clearInterval(reminderTimer);
     for (const client of sseClients) client.res.end();
     sseClients.clear();
     store.close();

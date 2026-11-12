@@ -74,8 +74,8 @@ function requireRole(user, action) {
 }
 
 /** Create the WardCare HTTP server with SQLite persistence and real-time SSE updates. */
-export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__dirname, 'ward-care.db') } = {}) {
-  const store = new WardStore(dbPath);
+export function createAppServer({ dbPath = process.env.WARD_DB || path.join(__dirname, 'ward-care.db'), seed = true } = {}) {
+  const store = new WardStore(dbPath, { seed });
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const sseClients = new Set();
 

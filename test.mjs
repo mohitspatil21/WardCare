@@ -39,7 +39,7 @@ test('WardCare HTML inline script is valid JS and has no demo artifacts', () => 
 
 test('Real-time SSE, DB persistence, RBAC, clinical workflow, and limited past-data retention', async () => {
   const dbPath = tmpDbPath();
-  let { server, store } = createAppServer({ dbPath });
+  let { server, store } = createAppServer({ dbPath, seed: false });
   await new Promise((resolve) => server.listen(0, resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
@@ -220,7 +220,7 @@ test('Real-time SSE, DB persistence, RBAC, clinical workflow, and limited past-d
   }
 
   // Persistence check after restart
-  ({ server } = createAppServer({ dbPath }));
+  ({ server } = createAppServer({ dbPath, seed: false }));
   await new Promise((resolve) => server.listen(0, resolve));
   const baseUrl2 = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -228,6 +228,41 @@ test('Real-time SSE, DB persistence, RBAC, clinical workflow, and limited past-d
     const persisted = await reqJson(baseUrl2, 'GET', '/api/state', patelAuth2.token);
     assert.equal(persisted.data.stats.s, 61);
     assert.equal(persisted.data.stats.d, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { fs.unlinkSync(dbPath + suffix); } catch {}
+    }
+  }
+});
+
+test('Default initial ward seeding populates dashboard, queues, and benchmarks', async () => {
+  const dbPath = tmpDbPath();
+  const { server } = createAppServer({ dbPath });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const health = await reqJson(baseUrl, 'GET', '/api/health', null);
+    assert.deepEqual(health.data, { ok: true, occupied: 32, capacity: 74 });
+
+    const adminAuth = await loginAs(baseUrl, 'sunita', 'admin123');
+    const docAuth = await loginAs(baseUrl, 'mehta', 'doc123');
+    const nurseAuth = await loginAs(baseUrl, 'priya', 'nurse123');
+
+    assert.equal(adminAuth.state.stats.s, 19);
+    assert.equal(adminAuth.state.stats.d, 3);
+    assert.ok(adminAuth.state.stats.sr30 >= 0.85, 'Expected recovery rate >= 85%');
+    assert.ok(adminAuth.state.stats.mr30 <= 0.15, 'Expected mortality rate <= 15%');
+    assert.equal(adminAuth.state.analytics.freeBeds, 42);
+    assert.ok(adminAuth.state.analytics.ageCohorts.every((c) => c.discharged + c.active > 0));
+    assert.ok(adminAuth.state.analytics.dailyTrend.some((d) => d.readings > 0));
+
+    const docState = await reqJson(baseUrl, 'GET', '/api/state', docAuth.token);
+    assert.ok(docState.data.notifications.some((n) => n.kind === 'eligible'));
+    assert.ok(docState.data.notifications.some((n) => n.kind === 'reminder'));
+
+    const nurseState = await reqJson(baseUrl, 'GET', '/api/state', nurseAuth.token);
+    assert.ok(nurseState.data.notifications.some((n) => n.kind === 'reminder'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
     for (const suffix of ['', '-wal', '-shm']) {

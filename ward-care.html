@@ -165,11 +165,19 @@ function stats(){if(S&&S.stats)return S.stats;const ds=S.p.filter(p=>p.st==='dis
  return{mr,mr30,sr:mr==null?null:1-mr,sr30:mr30==null?null:1-mr30,n:f,d:dt.length,s:ds.length,f3,d3,s3,los:ds.length?ds.reduce((a,p)=>a+dd(p.adm,p.out),0)/ds.length:0,retainedPast:f,archivedPast:0}}
 const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
 /* views */
+function quickLogin(u,p){$('lu').value=u;$('lp').value=p;login()}
 function loginView(){
- return `<div class="card" style="max-width:420px;margin:32px auto;padding:20px"><h2 style="margin-top:0">Staff Sign In</h2><p class="mu">Sign in with your WardCare staff credentials.</p>
+ const creds=[['Admin','Sunita (Admin)','sunita','admin123'],['Doctor','Dr. Mehta','mehta','doc123'],['Doctor','Dr. Rao','rao','doc123'],['Nurse','Priya (Nurse)','priya','nurse123'],['Nurse','Anil (Nurse)','anil','nurse123']];
+ return `<div class="card" style="max-width:560px;margin:28px auto;padding:20px"><h2 style="margin-top:0">Staff Sign In</h2><p class="mu">Sign in with your WardCare staff credentials.</p>
  <label class="mu">Username<input id="lu" autocomplete="username" placeholder="Username" style="width:100%;margin:4px 0 10px" onkeydown="if(event.key==='Enter')$('lp').focus()"></label>
  <label class="mu">Password<input id="lp" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;margin:4px 0 14px" onkeydown="if(event.key==='Enter')login()"></label>
- <button class="b p" style="width:100%" onclick="login()">Sign in</button></div>`}
+ <button class="b p" style="width:100%" onclick="login()">Sign in</button>
+ <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)">
+  <div class="mu" style="margin-bottom:6px;font-weight:600">Staff Accounts (click to sign in)</div>
+  <div style="overflow-x:auto"><table><tr><th>Role</th><th>Display Name</th><th>Username</th><th>Password</th><th></th></tr>
+  ${creds.map(c=>`<tr><td>${c[0]}</td><td>${c[1]}</td><td><code>${c[2]}</code></td><td><code>${c[3]}</code></td><td><button class="b" style="padding:4px 10px;font-size:12px" onclick="quickLogin('${c[2]}','${c[3]}')">Sign in</button></td></tr>`).join('')}
+  </table></div>
+ </div></div>`}
 function notifBanner(){const ns=(S&&S.notifications)||[];if(!ns.length)return '';
  const tag=k=>k==='mortality'?'<span class="tg f">Alert</span>':k==='reminder'?'<span class="tg a">Reminder</span>':'<span class="tg" style="color:var(--bl)">Discharge</span>';
  return `<div class="card no-print" style="margin-top:12px;border-color:var(--bl)"><div class="row"><b>Reminders & Notifications (${ns.length})</b><button class="b" style="padding:4px 10px;font-size:12px" onclick="readNotif()">Dismiss all</button></div>

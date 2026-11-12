@@ -20,6 +20,7 @@ import {
   verifyPassword,
   vis,
 } from './ward-logic.mjs';
+import { seedInitialWard } from './seed.mjs';
 
 const INITIAL_STAFF = [
   { username: 'priya', name: 'Priya (Nurse)', role: 'nurse', pw: 'nurse123' },
@@ -39,11 +40,12 @@ export class AppError extends Error {
 
 /** SQLite-backed persistence store with bounded past-data retention for WardCare. */
 export class WardStore {
-  constructor(dbPath = './ward-care.db') {
+  constructor(dbPath = './ward-care.db', { seed = true } = {}) {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
     this.#initSchema();
     this.#initUsers();
+    if (seed) seedInitialWard(this.db);
     this.prunePastData();
   }
 
@@ -114,6 +116,10 @@ export class WardStore {
       CREATE TABLE IF NOT EXISTS ward_archive (
         key TEXT PRIMARY KEY,
         val INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS ward_meta (
+        key TEXT PRIMARY KEY,
+        val TEXT NOT NULL
       );
     `);
 

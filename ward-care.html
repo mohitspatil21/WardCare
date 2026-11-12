@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WardCare – Quarantine Ward Manager</title>
+<style>
+:root{--bg:#f4f6f8;--cd:#fff;--tx:#18202a;--mu:#64707d;--bd:#dfe4ea;--pr:#0f766e;--pt:#fff;--rd:#c0262d;--am:#b45309;--bl:#1d4ed8;--gn:#15803d;--sf:#eef2f5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1316;--cd:#181d22;--tx:#e7ebef;--mu:#93a0ac;--bd:#2a323a;--pr:#2dd4bf;--pt:#06201d;--rd:#ff7b80;--am:#fbbf24;--bl:#8fb4ff;--gn:#4ade80;--sf:#222a31}}
+*{box-sizing:border-box}html{color-scheme:light dark}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,sans-serif}
+header{background:var(--cd);border-bottom:1px solid var(--bd);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.w{max-width:980px;margin:0 auto;padding:12px 14px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:17px}.logo i{color:var(--pr);font-style:normal}
+nav{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--mu);padding:8px 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--sf);color:var(--tx)}
+h2{font-size:16px;margin:22px 0 10px}h3{margin:0;font-size:15px}
+.mu{color:var(--mu);font-size:13px}
+.card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.g{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}
+.kp div{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.kp b{font-size:24px;display:block;line-height:1.2}.kp span{font-size:12px;color:var(--mu)}
+.pb{height:8px;background:var(--sf);border-radius:9px;overflow:hidden;margin:6px 0 2px}.pb i{display:block;height:100%;background:var(--pr)}
+button,input,select,textarea{font:inherit;color:var(--tx)}
+input,select,textarea{padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--cd)}
+input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--pr);outline-offset:1px}
+.b{padding:9px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--cd);cursor:pointer;font-weight:600}
+.b.p{background:var(--pr);color:var(--pt);border-color:var(--pr)}.b.d{color:var(--rd);border-color:var(--rd)}.b:disabled{opacity:.45;cursor:not-allowed}
+.tg{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--sf);white-space:nowrap}
+.f{color:var(--rd)}.o{color:var(--gn)}.a{color:var(--am)}
+.al{border:1px solid var(--rd);color:var(--rd);border-radius:10px;padding:10px 12px;margin:10px 0;font-weight:600}
+.beds{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:5px}
+.bd{position:relative;aspect-ratio:1;border-radius:8px;border:2px solid var(--bd);background:var(--sf);font-size:12px;font-weight:700;cursor:pointer;color:var(--tx);padding:0}
+.bd.e{opacity:.5;cursor:default}.bd.n{border-color:var(--am);border-style:dashed}.bd.m{border-color:var(--gn)}.bd.v{background:color-mix(in srgb,var(--rd) 22%,var(--cd));border-color:var(--rd)}.bd.r{background:color-mix(in srgb,var(--bl) 22%,var(--cd));border-color:var(--bl)}
+.bd .vd{position:absolute;top:2px;right:3px;font-size:9px;line-height:1;color:var(--gn)}
+.flt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.flt button{border:1px solid var(--bd);background:var(--cd);color:var(--mu);padding:5px 10px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer}
+.flt button.on{background:var(--pr);color:var(--pt);border-color:var(--pr)}
+.lg{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mu);margin-top:8px}
+.lg s{display:inline-block;width:11px;height:11px;border-radius:3px;border:2px solid;margin-right:4px;vertical-align:-1px;text-decoration:none}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left}th{color:var(--mu);font-size:12px}
+.ov{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-start;justify-content:center;padding:20px 12px;overflow:auto;z-index:20}
+.md{background:var(--cd);border-radius:14px;max-width:560px;width:100%;padding:16px;border:1px solid var(--bd)}
+#ts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:30;display:none;max-width:90%}
+svg text{fill:var(--mu);font-size:10px}
+</style></head><body>
+<header><div class="w"><div class="bar"><div class="logo">Ward<i>Care</i> <span class="mu" id="dt"></span> <span class="tg" id="sy">Connecting…</span></div>
+<div class="g" id="ub" style="display:none"><span class="tg" id="un"></span><button class="b" onclick="logout()">Sign out</button></div></div><nav id="nv"></nav></div></header>
+<div class="w" id="v"><div class="card mu" style="margin-top:14px">Loading ward data…</div></div><div id="md"></div><div id="dg"></div><div id="ts" role="status"></div>
+<script>
+const TH=38,CAP=74,BM=.15,TK='wc_tok';
+const CAN={temp:['nurse'],visit:['doctor'],confirm:['doctor'],death:['doctor','admin'],admit:['admin'],disch:['admin'],amend:['nurse','doctor'],manageUsers:['admin']};
+let CUR=null,S=null,tab='work',M=null,q='',pf='active',busy=false,tok='',es=null,pendingSync=false;
+try{tok=localStorage.getItem(TK)||''}catch(e){}
+const U=()=>CUR,can=a=>Boolean(CUR&&CAN[a].includes(CUR.r));
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const bk=n=>{const d=new Date();d.setDate(d.getDate()-n);return iso(d)},td=()=>bk(0);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dd=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+const $=i=>document.getElementById(i);
+function setSync(ok,msg){const e=$('sy');if(!e)return;e.textContent=msg||(ok?'● Live':'Offline');e.className='tg '+(ok?'o':'f')}
+function saveTok(t){tok=t||'';try{if(tok)localStorage.setItem(TK,tok);else localStorage.removeItem(TK)}catch(e){}}
+function closeEvents(){if(es){es.close();es=null}}
+function hasUnsavedInput(){
+ if($('dg').innerHTML)return true;
+ const ae=document.activeElement;
+ return Boolean(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&ae.getAttribute('aria-label')!=='Search'&&ae.value);
+}
+function connectEvents(){
+ closeEvents();
+ if(!CUR||typeof EventSource==='undefined')return;
+ const url='/api/events'+(tok?'?token='+encodeURIComponent(tok):'');
+ es=new EventSource(url);
+ es.addEventListener('ready',()=>setSync(true,'● Live'));
+ es.addEventListener('update',ev=>{
+  try{S=JSON.parse(ev.data)}catch(e){return}
+  if(busy||hasUnsavedInput()){pendingSync=true;return}
+  pendingSync=false;R(1);
+ });
+ es.onerror=()=>{if(CUR)setSync(false,'Reconnecting…')};
+}
+document.addEventListener('focusout',()=>{if(pendingSync&&!busy&&!hasUnsavedInput()){pendingSync=false;setTimeout(()=>R(1),50)}});
+async function api(method,path,body){
+ const h={'Content-Type':'application/json'};if(tok)h.Authorization='Bearer '+tok;
+ const r=await fetch(path,{method,credentials:'same-origin',headers:h,body:body!==undefined?JSON.stringify(body):undefined});
+ const d=await r.json().catch(()=>({}));
+ if(r.status===401&&path!=='/api/login'){closeEvents();CUR=null;S=null;saveTok('');R();throw new Error(d.error||'Session expired – please sign in')}
+ if(!r.ok)throw new Error(d.error||'Request failed ('+r.status+')');
+ if(d.user)CUR=d.user;
+ if(d.token)saveTok(d.token);
+ if(d.state)S=d.state;else if(d.p)S={p:d.p,log:d.log||[],stats:d.stats,notifications:d.notifications||[],retention:d.retention,staff:d.staff};
+ setSync(true,es&&es.readyState===1?'● Live':'Synced');
+ return d;
+}
+async function ld(){
+ try{
+  await api('GET','/api/state');
+  connectEvents();
+  R();
+ }catch(e){
+  if(!CUR){setSync(true,'Sign in required');R();return}
+  setSync(false,'Backend offline');
+  $('v').innerHTML=`<div class="al" style="margin-top:14px">Cannot reach WardCare backend (${esc(e.message)}). Start the server with <code>node server.js</code>. <button class="b" style="margin-left:8px" onclick="ld()">Retry</button></div>`;
+ }
+}
+async function act(fn,okMsg){
+ if(busy)return;busy=true;
+ try{const d=await fn();pendingSync=false;R();if(okMsg)tt(typeof okMsg==='function'?okMsg(d):okMsg)}
+ catch(e){tt(e.message||'Action failed')}
+ finally{busy=false}
+}
+async function login(){
+ const un=$('lu').value.trim(),p=$('lp').value;
+ if(!un||!p){tt('Enter username and password');return}
+ await act(async()=>{tab='work';M=null;const d=await api('POST','/api/login',{username:un,password:p});connectEvents();return d},d=>`Signed in as ${d.user.n}`);
+}
+async function logout(){
+ await act(async()=>{closeEvents();await api('POST','/api/logout');CUR=null;S=null;M=null;saveTok('')},'Signed out');
+}
+const dc=()=>{$('dg').innerHTML=''};
+function dlg(t,m,fs,cb){$('dg').innerHTML=`<div class="ov" style="z-index:40"><div class="md" role="dialog" aria-modal="true"><h3>${esc(t)}</h3><p class="mu">${esc(m)}</p>${fs.map(f=>`<label class="mu">${f.l}<input id="d_${f.id}" type="${f.t||'text'}" step="0.1" value="${esc(f.v||'')}" style="width:100%;margin:4px 0 10px"></label>`).join('')}<div class="g" style="justify-content:flex-end"><button class="b" onclick="dc()">Cancel</button><button class="b p" id="dok">Confirm</button></div></div></div>`;
+ $('dok').onclick=()=>{const v={};fs.forEach(f=>v[f.id]=$('d_'+f.id).value.trim());if(fs.some(f=>!v[f.id])){tt('Please fill in all fields');return}dc();cb(v)};const i=document.querySelector('#dg input');if(i)i.focus()}
+function tt(m){const e=$('ts');e.textContent=m;e.style.display='block';clearTimeout(tt.h);tt.h=setTimeout(()=>e.style.display='none',2800)}
+const A=()=>S.p.filter(p=>p.st==='active'),P=id=>S.p.find(p=>p.id===id);
+const tod=p=>p.t.filter(x=>x.d===td()),vis=p=>p.v.some(x=>x.d===td());
+function stk(p){let s=0;for(let i=0;i<60;i++){const d=bk(i),r=p.t.filter(x=>x.d===d);if(!r.length){if(i===0)continue;break}if(r.some(x=>x.c>=TH))break;s++}return s}
+const rdy=p=>stk(p)>=3,last=p=>p.t[p.t.length-1];
+const freeBeds=()=>{const u=new Set(A().map(p=>p.bed));const b=[];for(let i=1;i<=CAP;i++)if(!u.has(i))b.push(i);return b};
+const free=()=>freeBeds()[0]||0;
+const tc=x=>x?`<b class="${x.c>=TH?'f':'o'}">${x.c.toFixed(1)}°C</b>`:'<span class="mu">no readings</span>';
+function pill(p){if(rdy(p))return p.conf?'<span class="tg" style="color:var(--bl)">Discharge approved</span>':'<span class="tg" style="color:var(--bl)">Eligible for discharge</span>';
+ const l=last(p);return l&&l.c>=TH?'<span class="tg f">Fever</span>':''}
+/* actions */
+function rec(id,iid){const p=P(id);if(!p||!can('temp')||tod(p).length)return;const e=$(iid||'t'+id),c=parseFloat(e.value);
+ if(isNaN(c)||c<34||c>43){tt('Enter a temperature between 34 and 43 °C');e.focus();return}
+ act(()=>api('POST',`/api/patients/${id}/temperatures`,{c}),c>=TH?`Fever recorded for ${p.name}`:`Saved ${c.toFixed(1)}°C for ${p.name}`)}
+function amend(id){if(!can('amend'))return;const p=P(id),tr=tod(p),l=tr[tr.length-1]||last(p);if(!l)return;
+ dlg('Correct reading – '+p.name,'The original value is kept in the audit log.',[{id:'c',l:'Corrected temperature (°C)',t:'number',v:l.c},{id:'r',l:'Reason for correction'}],v=>{const n=parseFloat(v.c);if(isNaN(n)||n<34||n>43){tt('Enter 34–43 °C');return}
+ act(()=>api('PATCH',`/api/patients/${id}/temperatures/today`,{c:n,reason:v.r}),'Reading corrected and logged')})}
+function visit(id,nid,ap){const p=P(id);if(!p||!can('visit')||vis(p))return;const n=$(nid||'n'+id);if(!tod(p).length){tt('Temperature not taken yet');return}
+ const note=n?n.value.trim():'';
+ act(()=>api('POST',`/api/patients/${id}/visits`,{note,approve:Boolean(ap)}),ap&&rdy(p)?`Visit recorded & ${p.name} sent to admin for discharge`:'Visit recorded')}
+function conf(id){const p=P(id);if(!p||!can('confirm')||!rdy(p)||p.conf)return;
+ act(()=>api('POST',`/api/patients/${id}/approve-discharge`),'Sent to admin for discharge')}
+function out(id,st){const p=P(id);if(!p)return;if(st==='disch'&&(!can('disch')||!rdy(p)||!p.conf))return;if(st==='dead'&&!can('death'))return;
+ if(st==='dead')dlg('Record death of '+p.name,'This cannot be undone and frees bed '+p.bed+'.',[],()=>fin(id,st));else fin(id,st)}
+function fin(id,st){act(async()=>{const d=await api('POST',`/api/patients/${id}/${st==='dead'?'death':'discharge'}`);M=null;return d},d=>st==='dead'?'Outcome recorded':'Discharged – bed '+d.freedBed+' is free')}
+function adm(){const n=$('an').value.trim(),a=+$('ag').value,g=$('agd').value,ph=$('aph').value.trim(),nt=$('ant').value.trim(),bd=+$('abd').value;
+ if(!free()){tt('Ward is at full capacity (74/74)');return}
+ if(!n||!Number.isInteger(a)||a<1||a>120){tt('Valid name and age (1–120) are required');return}
+ act(()=>api('POST','/api/patients',{name:n,age:a,gender:g,phone:ph,notes:nt,bed:bd||undefined}),d=>`Admitted to bed ${d.patient.bed}`)}
+function addStaff(){const u=$('su').value.trim(),n=$('sn').value.trim(),r=$('sr').value,p=$('sp').value;
+ if(!u||!n||!p){tt('Username, name, and password are required');return}
+ act(()=>api('POST','/api/users',{username:u,name:n,role:r,password:p}),d=>`Added ${d.created.r} account: ${d.created.n}`)}
+function readNotif(id){act(()=>api('POST',id?`/api/notifications/${id}/read`:'/api/notifications/read-all'))}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('dg').innerHTML)dc();else if(M){M=null;R()}}});
+/* stats */
+function stats(){if(S&&S.stats)return S.stats;const ds=S.p.filter(p=>p.st==='disch'),dt=S.p.filter(p=>p.st==='dead'),c=bk(30),
+ r=(l)=>l.filter(p=>p.out>=c).length,d3=r(dt),s3=r(ds),f=ds.length+dt.length,f3=d3+s3;
+ const mr=f?dt.length/f:null,mr30=f3?d3/f3:null;
+ return{mr,mr30,sr:mr==null?null:1-mr,sr30:mr30==null?null:1-mr30,n:f,d:dt.length,s:ds.length,f3,d3,s3,los:ds.length?ds.reduce((a,p)=>a+dd(p.adm,p.out),0)/ds.length:0,retainedPast:f,archivedPast:0}}
+const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
+/* views */
+function loginView(){
+ return `<div class="card" style="max-width:420px;margin:32px auto;padding:20px"><h2 style="margin-top:0">Staff Sign In</h2><p class="mu">Sign in with your WardCare staff credentials.</p>
+ <label class="mu">Username<input id="lu" autocomplete="username" placeholder="Username" style="width:100%;margin:4px 0 10px" onkeydown="if(event.key==='Enter')$('lp').focus()"></label>
+ <label class="mu">Password<input id="lp" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;margin:4px 0 14px" onkeydown="if(event.key==='Enter')login()"></label>
+ <button class="b p" style="width:100%" onclick="login()">Sign in</button></div>`}
+function notifBanner(){const ns=(S&&S.notifications)||[];if(!ns.length)return '';
+ return `<div class="card" style="margin-top:12px;border-color:var(--bl)"><div class="row"><b>Notifications (${ns.length})</b><button class="b" style="padding:4px 10px;font-size:12px" onclick="readNotif()">Dismiss all</button></div>
+ <div style="display:grid;gap:6px;margin-top:8px">${ns.slice(0,5).map(n=>`<div class="row" style="border-top:1px solid var(--bd);padding-top:6px"><span class="${n.kind==='mortality'?'f':''}" style="font-size:13px">${esc(n.message)}</span><span class="g">${n.patientId?`<button class="b" style="padding:4px 8px;font-size:12px" onclick="M=${n.patientId};R()">Open</button>`:''}<button class="b" style="padding:4px 8px;font-size:12px" onclick="readNotif(${n.id})">Dismiss</button></span></div>`).join('')}</div></div>`}
+function chart(p){if(!p.t.length)return '<p class="mu">No readings yet.</p>';const t=p.t.slice(-14),W=500,H=120,x=i=>20+i*(W-40)/Math.max(1,t.length-1),y=c=>H-18-(Math.min(41,Math.max(36,c))-36)*(H-34)/5;
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Temperature history"><line x1="20" x2="${W-20}" y1="${y(TH)}" y2="${y(TH)}" stroke="var(--rd)" stroke-dasharray="4"/><text x="22" y="${y(TH)-4}">fever ${TH}°C</text>
+ <polyline fill="none" stroke="var(--pr)" stroke-width="2" points="${t.map((e,i)=>x(i)+','+y(e.c)).join(' ')}"/>${t.map((e,i)=>`<circle cx="${x(i)}" cy="${y(e.c)}" r="4" fill="${e.c>=TH?'var(--rd)':'var(--gn)'}"><title>${e.d} ${e.at}: ${e.c.toFixed(1)}°C</title></circle>`).join('')}</svg>`}
+function modal(){const p=M&&P(M);if(!p){$('md').innerHTML='';return}
+ const actv=p.st==='active',tdr=tod(p).length,vsd=vis(p),elg=rdy(p);
+ let ax='';
+ if(actv){
+  if(can('temp')&&!tdr)ax+=`<div class="g"><input id="mt${p.id}" type="number" step="0.1" inputmode="decimal" placeholder="Today’s °C" style="width:120px" onkeydown="if(event.key==='Enter')rec(${p.id},'mt${p.id}')"><button class="b p" onclick="rec(${p.id},'mt${p.id}')">Save temp</button></div>`;
+  if(can('amend')&&tdr)ax+=`<button class="b" onclick="amend(${p.id})">Correct today’s temp</button>`;
+  if(can('visit')&&tdr&&!vsd)ax+=`<div class="g" style="flex:1;min-width:220px"><input id="mn${p.id}" placeholder="Treatment note (optional)" style="flex:1;min-width:120px"><button class="b p" onclick="visit(${p.id},'mn${p.id}')">Mark visited</button>${elg&&!p.conf?`<button class="b p" onclick="visit(${p.id},'mn${p.id}',true)">Visit & approve</button>`:''}</div>`;
+  if(can('confirm')&&elg&&!p.conf)ax+=`<button class="b p" onclick="conf(${p.id})">Approve discharge</button>`;
+  if(can('disch')&&elg&&p.conf)ax+=`<button class="b p" onclick="out(${p.id},'disch')">Discharge & free bed</button>`;
+  if(can('death'))ax+=`<button class="b d" onclick="out(${p.id},'dead')">Record death</button>`;
+ }
+ const meta=[p.gender,p.phone].filter(Boolean).join(' · ');
+ $('md').innerHTML=`<div class="ov" onclick="if(event.target===this){M=null;R()}"><div class="md" role="dialog" aria-modal="true"><div class="row"><div><h3>${esc(p.name)} · ${p.age}y${meta?' · '+esc(meta):''}</h3><div class="mu">${actv?'Bed '+p.bed+' · day '+(dd(p.adm,td())+1)+' · admitted '+p.adm:(p.st==='dead'?'Deceased ':'Discharged ')+p.out+' (admitted '+p.adm+')'}</div>${p.notes?`<div class="mu" style="margin-top:2px">Admission note: ${esc(p.notes)}</div>`:''}</div><button class="b" onclick="M=null;R()">Close</button></div>
+ ${actv?`<div class="g" style="margin:10px 0">${pill(p)}<span class="tg">Fever-free days ${stk(p)}/3</span><span class="tg">${tdr?'Measured today':'Temp pending'}</span><span class="tg">${vsd?'Visited today':'Visit pending'}</span></div>`:''}
+ ${ax?`<div class="g card" style="margin:10px 0">${ax}</div>`:''}
+ ${chart(p)}<h2>Temperature readings</h2><table><tr><th>Date</th><th>Temp</th><th>By</th></tr>${p.t.slice().reverse().map(x=>`<tr><td>${x.d} ${x.at}</td><td>${tc(x)}${x.am?' <span class="mu" title="'+esc(x.am)+'">(corrected)</span>':''}</td><td>${esc(x.by)}</td></tr>`).join('')||'<tr><td colspan=3 class="mu">None</td></tr>'}</table>
+ <h2>Doctor visits</h2><table><tr><th>Date</th><th>Doctor</th><th>Note</th></tr>${p.v.slice().reverse().map(v=>`<tr><td>${v.d}${v.at?' '+v.at:''}</td><td>${esc(v.by)}</td><td class="mu">${esc(v.note||'—')}</td></tr>`).join('')||'<tr><td colspan=3 class="mu">None</td></tr>'}</table></div></div>`}
+function nurse(){const a=A().slice().sort((x,y)=>x.bed-y.bed),todo=a.filter(p=>!tod(p).length),done=a.filter(p=>tod(p).length),dn=done.length;
+ return `<h2 style="margin-top:14px">Today’s temperature round</h2><div class="card"><div class="row"><b>${dn} of ${a.length} measured</b><span class="mu">${todo.length} remaining</span></div><div class="pb"><i style="width:${a.length?dn/a.length*100:0}%"></i></div></div>`+
+ (!a.length?'<div class="card mu">No active patients admitted yet.</div>':(todo.map(p=>`<div class="card row"><div><b>Bed ${p.bed} · ${esc(p.name)}</b> ${pill(p)}<div class="mu">Last: ${tc(last(p))} · fever-free ${stk(p)}/3</div></div><div class="g"><input id="t${p.id}" type="number" step="0.1" inputmode="decimal" placeholder="°C" style="width:90px" aria-label="Temperature for ${esc(p.name)}" onkeydown="if(event.key==='Enter')rec(${p.id})"><button class="b p" onclick="rec(${p.id})">Save</button></div></div>`).join('')||'<div class="card o"><b>✓ Everyone has been measured today.</b></div>'))+
+ `<h2>Measured today (${dn})</h2>`+(done.map(p=>`<div class="card row"><div><b>Bed ${p.bed} · ${esc(p.name)}</b> ${pill(p)}</div><div class="g">${tc(last(p))}<span class="mu">${last(p).at} · ${esc(last(p).by.split(' ')[0])}</span><button class="b" onclick="amend(${p.id})">Correct</button></div></div>`).join('')||'<p class="mu">None measured yet today.</p>')}
+function doctor(){const a=A(),qq=a.filter(p=>tod(p).length&&!vis(p)).sort((x,y)=>(rdy(y)-rdy(x))||(last(y).c-last(x).c)||(x.bed-y.bed)),w=a.filter(p=>!tod(p).length).sort((x,y)=>x.bed-y.bed),vd=a.filter(vis).sort((x,y)=>x.bed-y.bed),dn=vd.length,ap=a.filter(p=>rdy(p)&&!p.conf);
+ return `<h2 style="margin-top:14px">Today’s rounds</h2><div class="card"><div class="row"><b>${dn} of ${a.length} visited</b><span class="mu">${qq.length} ready · ${w.length} awaiting temperature</span></div><div class="pb"><i style="width:${a.length?dn/a.length*100:0}%"></i></div></div>
+ ${ap.length?`<div class="card" style="border-color:var(--bl)"><b>${ap.length} patient(s) have 3 fever-free days</b> and need your discharge approval:<div class="g" style="margin-top:8px">${ap.map(p=>`<button class="b p" onclick="conf(${p.id})">Approve · Bed ${p.bed}</button>`).join('')}</div></div>`:''}
+ <h2>Ready to visit (${qq.length})</h2>`+(!a.length?'<div class="card mu">No active patients admitted yet.</div>':(qq.map(p=>`<div class="card"><div class="row"><div><b>Bed ${p.bed} · ${esc(p.name)}, ${p.age}</b> ${pill(p)}<div class="mu">Today ${tc(last(p))} · recent ${p.t.slice(-5).map(x=>x.c.toFixed(1)).join(' · ')} · fever-free ${stk(p)}/3</div></div><button class="b" onclick="M=${p.id};R()">History</button></div>
+ <div class="g" style="margin-top:8px;flex-wrap:wrap"><textarea id="n${p.id}" rows="1" placeholder="Treatment note (optional)" style="flex:1;min-width:160px"></textarea><button class="b p" onclick="visit(${p.id})">Mark visited</button>${rdy(p)&&!p.conf?`<button class="b p" onclick="visit(${p.id},null,true)">Visit & approve</button>`:''}<button class="b d" onclick="out(${p.id},'dead')">Death</button></div></div>`).join('')||'<div class="card o"><b>✓ No one waiting.</b></div>'))+
+ `<h2>Not measured yet – skip for now (${w.length})</h2><div class="g">${w.map(p=>`<button class="b" style="padding:5px 9px;font-size:12px" onclick="M=${p.id};R()">Bed ${p.bed}</button>`).join('')||'<span class="mu">None</span>'}</div>`+
+ `<h2>Visited today (${dn})</h2>`+(vd.map(p=>{const lv=p.v.filter(x=>x.d===td()).slice(-1)[0];return `<div class="card row"><div><b>Bed ${p.bed} · ${esc(p.name)}</b> ${pill(p)}<div class="mu">Today ${tc(last(p))} · fever-free ${stk(p)}/3${lv?` · visited ${lv.at||''} by ${esc(lv.by)}`:''}</div></div><div class="g">${rdy(p)&&!p.conf?`<button class="b p" onclick="conf(${p.id})">Approve discharge</button>`:''}<button class="b" onclick="M=${p.id};R()">History</button><button class="b d" onclick="out(${p.id},'dead')">Death</button></div></div>`}).join('')||'<p class="mu">No visits recorded today yet.</p>')}
+function bedmap(){const m={};A().forEach(p=>m[p.bed]=p);let h='';
+ for(let i=1;i<=CAP;i++){const p=m[i];let c='e',tip='';if(p){const l=last(p),tdr=tod(p).length,vsd=vis(p);c=rdy(p)?'r':(tdr?(l.c>=TH?'v':'m'):(l&&l.c>=TH?'v n':'n'));tip=`Bed ${i} · ${p.name} · ${l?l.c.toFixed(1)+'°C':'no reading'} · ${tdr?'Measured':'Temp pending'} · ${vsd?'Visited':'Visit pending'}`}
+ h+=`<button class="bd ${c}" ${p?`onclick="M=${p.id};R()" title="${esc(tip)}"`:'disabled'}>${i}${p&&vis(p)?'<span class="vd" aria-hidden="true">✓</span>':''}</button>`}
+ return `<div class="beds">${h}</div><div class="lg"><span><s style="border-color:var(--am);border-style:dashed"></s>Temp pending</span><span><s style="border-color:var(--gn)"></s>Measured</span><span><s style="border-color:var(--rd)"></s>Fever</span><span><s style="border-color:var(--bl)"></s>Discharge-eligible</span><span><s style="border-color:var(--bd)"></s>Empty</span><span><b class="o">✓</b> Visited today</span></div>`}
+function admin(){const a=A(),aw=a.filter(p=>rdy(p)&&!p.conf).sort((x,y)=>x.bed-y.bed),rd=a.filter(p=>rdy(p)&&p.conf).sort((x,y)=>x.bed-y.bed),fb=freeBeds(),f=fb[0]||0,stf=S.staff||[];
+ return `<h2 style="margin-top:14px">Discharge queue (${rd.length})</h2>`+(rd.map(p=>`<div class="card row"><div><b>Bed ${p.bed} · ${esc(p.name)}</b> <span class="tg" style="color:var(--bl)">Doctor approved${p.confBy?' · '+esc(p.confBy):''}</span></div><div class="g"><button class="b" onclick="M=${p.id};R()">History</button><button class="b p" onclick="out(${p.id},'disch')">Discharge & free bed</button></div></div>`).join('')||'<p class="mu">No approved discharges waiting.</p>')+
+ (aw.length?`<div class="card" style="border-color:var(--am)"><b class="a">${aw.length} eligible patient(s) awaiting doctor approval:</b><div class="g" style="margin-top:8px">${aw.map(p=>`<button class="b" style="padding:5px 9px;font-size:12px" onclick="M=${p.id};R()">Bed ${p.bed}</button>`).join('')}</div></div>`:'')+
+ `<h2>Register & admit patient (${fb.length} beds free)</h2><div class="card"><div class="g"><input id="an" placeholder="Full name *" style="flex:2;min-width:160px" ${f?'':'disabled'} onkeydown="if(event.key==='Enter')adm()"><input id="ag" type="number" placeholder="Age *" style="width:82px" ${f?'':'disabled'} onkeydown="if(event.key==='Enter')adm()"><select id="agd" ${f?'':'disabled'}><option value="">Gender</option><option>Female</option><option>Male</option><option>Other</option></select><input id="aph" placeholder="Phone (optional)" style="min-width:130px" ${f?'':'disabled'}><select id="abd" ${f?'':'disabled'}>${f?`<option value="">Auto (Bed ${f})</option>`+fb.map(b=>`<option value="${b}">Bed ${b}</option>`).join(''):'<option value="">Ward full</option>'}</select></div><div class="g" style="margin-top:8px"><input id="ant" placeholder="Admission notes / symptoms (optional)" style="flex:1;min-width:200px" ${f?'':'disabled'} onkeydown="if(event.key==='Enter')adm()"><button class="b p" onclick="adm()" ${f?'':'disabled'}>${f?'Register & admit → Bed '+f:'Ward full (74/74)'}</button></div></div>`+
+ `<h2>Staff accounts (${stf.length})</h2><div class="card"><div class="g" style="margin-bottom:10px">${stf.map(u=>`<span class="tg">${esc(u.n)} · ${esc(u.username)} (${esc(u.r)})</span>`).join('')}</div><div class="g"><input id="su" placeholder="Username *" style="min-width:110px"><input id="sn" placeholder="Display name *" style="flex:1;min-width:140px"><select id="sr"><option value="nurse">Nurse</option><option value="doctor">Doctor</option><option value="admin">Admin</option></select><input id="sp" type="password" placeholder="Password (6+ chars) *" style="min-width:140px"><button class="b" onclick="addStaff()">Add staff</button></div></div>`}
+function dash(){const s=stats(),a=A(),bad30=s.mr30!=null&&s.mr30>BM,badAll=s.mr!=null&&s.mr>BM,bad=bad30||badAll,ret=S.retention||{days:30,maxPast:50};
+ const apv=a.filter(p=>rdy(p)&&p.conf).length,awt=a.filter(p=>rdy(p)&&!p.conf).length;
+ return `<h2 style="margin-top:14px">Ward overview</h2>${bad?`<div class="al">⚠ ${bad30?`30-day mortality is ${pct(s.mr30)} (recovery ${pct(s.sr30)})`:`Overall mortality is ${pct(s.mr)} (recovery ${pct(s.sr)})`} – exceeds the ${BM*100}% mortality / ${(1-BM)*100}% recovery benchmark. Clinical review recommended.</div>`:''}
+ <div class="kp"><div><b>${a.length}/${CAP}</b><span>Beds occupied</span></div><div><b class="${bad30?'f':'o'}">${pct(s.mr30)}</b><span>Mortality, 30d (≤15% · ${s.d3}/${s.f3})</span></div><div><b class="${bad30?'f':'o'}">${pct(s.sr30)}</b><span>Recovery, 30d (≥85% · ${s.s3}/${s.f3})</span></div><div><b class="${badAll?'f':'o'}">${pct(s.sr)}</b><span>Recovery, all time (${s.s}/${s.n})</span></div><div><b>${s.los.toFixed(1)} d</b><span>Avg stay (discharged)</span></div><div><b>${s.s} / ${s.d}</b><span>Discharged / deceased</span></div><div><b>${apv+awt}</b><span>Discharge-eligible (${apv} approved)</span></div><div><b>${a.filter(p=>tod(p).length).length}/${a.length} · ${a.filter(vis).length}/${a.length}</b><span>Measured / visited today</span></div></div>
+ <p class="mu" style="margin:8px 0 0">Past data retention: ${s.retainedPast??0} closed records kept (last ${ret.days} days, max ${ret.maxPast}${s.archivedPast?`; ${s.archivedPast} older archived in totals`:''}).</p>
+ <h2>Bed map <span class="mu">(tap a bed)</span></h2><div class="card">${bedmap()}</div>`}
+function pts(){const qt=q.trim(),fl=[['active','Active'],['pending_temp','Temp pending'],['ready_doc','Ready for doctor'],['visited','Visited today'],['eligible','Discharge eligible'],['fever','Fever'],['past','Past outcomes']];
+ const l=S.p.filter(p=>{if(pf==='past'){if(p.st==='active')return false}else{if(p.st!=='active')return false;
+  if(pf==='pending_temp'&&tod(p).length)return false;if(pf==='ready_doc'&&(!tod(p).length||vis(p)))return false;
+  if(pf==='visited'&&!vis(p))return false;if(pf==='eligible'&&!rdy(p))return false;
+  if(pf==='fever'&&!(last(p)&&last(p).c>=TH))return false}
+  return !qt||p.name.toLowerCase().includes(qt)||String(p.bed)===qt});
+ return `<h2 style="margin-top:14px">Patients (${l.length})</h2><div class="flt">${fl.map(f=>`<button class="${pf===f[0]?'on':''}" onclick="pf='${f[0]}';R()">${f[1]}</button>`).join('')}</div>
+ <input placeholder="Search name or bed…" value="${esc(q)}" oninput="q=this.value.toLowerCase();R(1)" style="width:100%;margin-bottom:8px" aria-label="Search">
+ <div class="card" style="overflow-x:auto"><table><tr><th>${pf==='past'?'Outcome':'Bed'}</th><th>Patient</th><th>Latest</th><th>Fever-free</th><th>Today</th><th></th></tr>${l.sort((x,y)=>pf==='past'?(y.out||'').localeCompare(x.out||''):x.bed-y.bed).map(p=>`<tr><td>${pf==='past'?(p.st==='dead'?'<span class="f">Deceased</span>':'<span class="o">Discharged</span>')+' <span class="mu">'+p.out+'</span>':p.bed}</td><td>${esc(p.name)}</td><td>${tc(last(p))}</td><td>${p.st==='active'?stk(p)+'/3':'—'}</td><td>${p.st==='active'?(tod(p).length?'🌡':'·')+' '+(vis(p)?'🩺':'·'):'—'}</td><td><button class="b" onclick="M=${p.id};R()">Open</button></td></tr>`).join('')||'<tr><td colspan=6 class="mu">No matching patients.</td></tr>'}</table></div>`}
+function audit(){return `<h2 style="margin-top:14px">Audit log</h2><div class="card"><table><tr><th>When</th><th>User</th><th>Action</th></tr>${S.log.slice(0,100).map(e=>`<tr><td>${new Date(e.ts).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(e.u)}</td><td>${esc(e.a)}</td></tr>`).join('')||'<tr><td colspan=3 class="mu">No actions yet.</td></tr>'}</table></div>`}
+function R(keep){$('dt').textContent='· '+new Date().toDateString();
+ if(!CUR||!S){$('ub').style.display='none';$('nv').innerHTML='';$('v').innerHTML=loginView();$('md').innerHTML='';return}
+ const r=U().r,a=A();
+ $('ub').style.display='flex';$('un').textContent=`${U().n} (${r})`;
+ const badge={nurse:a.filter(p=>!tod(p).length).length,doctor:a.filter(p=>tod(p).length&&!vis(p)).length,admin:a.filter(p=>rdy(p)&&p.conf).length}[r];
+ const tabs=[['work',{nurse:'Temperature round',doctor:'Rounds',admin:'Admissions'}[r]+(badge?` (${badge})`:'')],['dash','Dashboard'],['pts','Patients']];if(r==='admin')tabs.push(['log','Audit log']);
+ $('nv').innerHTML=tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="tab='${t[0]}';R()">${t[1]}</button>`).join('');
+ const ae=document.activeElement&&document.activeElement.getAttribute('aria-label')==='Search';
+ $('v').innerHTML=notifBanner()+(tab==='work'?{nurse,doctor,admin}[r]():tab==='dash'?dash():tab==='pts'?pts():audit());
+ if(keep&&ae){const e=document.querySelector('[aria-label=Search]');e.focus();e.setSelectionRange(e.value.length,e.value.length)}modal()}
+ld();
+</script></body></html>

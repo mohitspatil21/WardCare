@@ -1,0 +1,12 @@
+{
+  "name": "ward-care",
+  "version": "1.0.0",
+  "description": "WardCare Quarantine Ward Manager with SQLite backend",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.mjs"
+  }
+}
+

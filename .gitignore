@@ -1,0 +1,5 @@
+ward-care.db
+ward-care.db-wal
+ward-care.db-shm
+node_modules/
+*.log

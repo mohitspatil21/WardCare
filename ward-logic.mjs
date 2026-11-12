@@ -11,6 +11,49 @@ export const PAST_RETENTION_DAYS = 30;
 export const MAX_PAST_RECORDS = 50;
 export const MAX_AUDIT_LOGS = 300;
 
+export const INITIAL_STAFF = [
+  { username: 'priya', name: 'Priya (Nurse)', role: 'nurse', pw: 'nurse123' },
+  { username: 'anil', name: 'Anil (Nurse)', role: 'nurse', pw: 'nurse123' },
+  { username: 'mehta', name: 'Dr. Mehta', role: 'doctor', pw: 'doc123' },
+  { username: 'rao', name: 'Dr. Rao', role: 'doctor', pw: 'doc123' },
+  { username: 'sunita', name: 'Sunita (Admin)', role: 'admin', pw: 'admin123' },
+];
+
+/** Domain error carrying an HTTP status code. */
+export class AppError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const TOKEN_SECRET = process.env.WARD_SECRET || 'wardcare-serverless-session-secret';
+
+/** Sign an HMAC session token containing username and expiry for stateless fallback. */
+export function signToken(username) {
+  const payload = Buffer.from(JSON.stringify({ u: username, exp: Date.now() + 7 * 864e5 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+/** Verify an HMAC session token and return its username if valid and unexpired. */
+export function verifySignedToken(token) {
+  const parts = String(token ?? '').split('.');
+  if (parts.length !== 2) return null;
+  const [payload, sig] = parts;
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data?.u || (data.exp && Date.now() > data.exp)) return null;
+    return data.u;
+  } catch {
+    return null;
+  }
+}
+
 export const CAN = {
   temp: ['nurse'],
   visit: ['doctor'],
@@ -135,6 +178,45 @@ export function computeStats(patients, archive = { disch: 0, dead: 0 }) {
     retainedPast: ds.length + dt.length,
     archivedPast: (archive.disch || 0) + (archive.dead || 0),
   };
+}
+
+/** Build role-targeted automated reminder specs for today's pending ward tasks. */
+export function buildReminderSpecs(patients, today = td()) {
+  const active = patients.filter((x) => x.st === 'active');
+  const pendingTemps = active.filter((x) => !tod(x, today).length);
+  const readyVisits = active.filter((x) => tod(x, today).length && !vis(x, today));
+  const awaitApprove = active.filter((x) => rdy(x) && !x.conf);
+  const readyDisch = active.filter((x) => rdy(x) && x.conf);
+  return [
+    {
+      role: 'nurse',
+      kind: 'reminder',
+      key: `${today}:nurse:temp`,
+      count: pendingTemps.length,
+      msg: `Reminder: ${pendingTemps.length} patient(s) still awaiting today's temperature check (e.g. Bed ${pendingTemps.slice(0, 5).map((x) => x.bed).join(', ')}).`,
+    },
+    {
+      role: 'doctor',
+      kind: 'reminder',
+      key: `${today}:doctor:visit`,
+      count: readyVisits.length,
+      msg: `Reminder: ${readyVisits.length} measured patient(s) ready for doctor visit today.`,
+    },
+    {
+      role: 'doctor',
+      kind: 'reminder',
+      key: `${today}:doctor:approve`,
+      count: awaitApprove.length,
+      msg: `Reminder: ${awaitApprove.length} patient(s) have 3 fever-free days awaiting discharge approval.`,
+    },
+    {
+      role: 'admin',
+      kind: 'reminder',
+      key: `${today}:admin:disch`,
+      count: readyDisch.length,
+      msg: `Reminder: ${readyDisch.length} doctor-approved patient(s) waiting to be discharged.`,
+    },
+  ];
 }
 
 /** Compute advanced ward analytics: 14-day fever trend, age cohorts, and compliance. */

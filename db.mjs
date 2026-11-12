@@ -1,13 +1,16 @@
 import crypto from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
 import {
+  AppError,
   BM,
   CAP,
+  INITIAL_STAFF,
   MAX_AUDIT_LOGS,
   MAX_PAST_RECORDS,
   PAST_RETENTION_DAYS,
   TH,
   bk,
+  buildReminderSpecs,
   computeAnalytics,
   computeDailyReport,
   computeStats,
@@ -15,26 +18,37 @@ import {
   hashPassword,
   hm,
   rdy,
+  signToken,
   td,
   tod,
   verifyPassword,
+  verifySignedToken,
   vis,
 } from './ward-logic.mjs';
+import { JsonWardStore } from './json-store.mjs';
 import { seedInitialWard } from './seed.mjs';
 
-const INITIAL_STAFF = [
-  { username: 'priya', name: 'Priya (Nurse)', role: 'nurse', pw: 'nurse123' },
-  { username: 'anil', name: 'Anil (Nurse)', role: 'nurse', pw: 'nurse123' },
-  { username: 'mehta', name: 'Dr. Mehta', role: 'doctor', pw: 'doc123' },
-  { username: 'rao', name: 'Dr. Rao', role: 'doctor', pw: 'doc123' },
-  { username: 'sunita', name: 'Sunita (Admin)', role: 'admin', pw: 'admin123' },
-];
+export { AppError };
 
-/** Domain error carrying an HTTP status code. */
-export class AppError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
+const require = createRequire(import.meta.url);
+let DatabaseSync = null;
+try {
+  ({ DatabaseSync } = require('node:sqlite'));
+} catch {
+  DatabaseSync = null;
+}
+
+/** Create SQLite store when available, falling back seamlessly to JSON store in constrained runtimes. */
+export function createWardStore(
+  dbPath = process.env.WARD_DB || (process.env.VERCEL ? '/tmp/ward-care.db' : './ward-care.db'),
+  opts = {}
+) {
+  if (!DatabaseSync) return new JsonWardStore(dbPath, opts);
+  try {
+    return new WardStore(dbPath, opts);
+  } catch (err) {
+    if (process.env.VERCEL) return new JsonWardStore(dbPath, opts);
+    throw err;
   }
 }
 
@@ -44,8 +58,12 @@ export class WardStore {
     dbPath = process.env.WARD_DB || (process.env.VERCEL ? '/tmp/ward-care.db' : './ward-care.db'),
     { seed = true } = {}
   ) {
+    if (!DatabaseSync) throw new Error('node:sqlite is not available in this Node.js runtime');
     this.db = new DatabaseSync(dbPath);
-    this.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
+    this.db.exec('PRAGMA foreign_keys = ON;');
+    try {
+      this.db.exec(process.env.VERCEL ? 'PRAGMA journal_mode = DELETE;' : 'PRAGMA journal_mode = WAL;');
+    } catch {}
     this.#initSchema();
     this.#initUsers();
     if (seed) seedInitialWard(this.db);
@@ -258,9 +276,9 @@ export class WardStore {
 
   /** Create a persisted authentication session token for a verified username. */
   createSession(username) {
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = process.env.VERCEL ? signToken(username) : crypto.randomBytes(32).toString('hex');
     this.db
-      .prepare('INSERT INTO sessions (token, username, created_at) VALUES (?, ?, ?)')
+      .prepare('INSERT OR REPLACE INTO sessions (token, username, created_at) VALUES (?, ?, ?)')
       .run(token, username, Date.now());
     return token;
   }
@@ -273,7 +291,15 @@ export class WardStore {
         'SELECT u.username, u.name, u.role FROM sessions s JOIN users u ON u.username = s.username WHERE s.token = ?'
       )
       .get(token);
-    return row ? { username: row.username, n: row.name, r: row.role } : null;
+    if (row) return { username: row.username, n: row.name, r: row.role };
+    if (process.env.VERCEL) {
+      const uname = verifySignedToken(token);
+      if (uname) {
+        const u = this.db.prepare('SELECT username, name, role FROM users WHERE username = ?').get(uname);
+        if (u) return { username: u.username, n: u.name, r: u.role };
+      }
+    }
+    return null;
   }
 
   /** Invalidate a session token on logout. */
@@ -329,43 +355,7 @@ export class WardStore {
   /** Synchronize automated daily reminders for pending nurse temps, doctor visits, approvals, and discharges. */
   syncAutomatedReminders(patients = null) {
     const p = patients ?? this.#hydratePatients(this.db.prepare('SELECT * FROM patients ORDER BY id ASC').all());
-    const today = td();
-    const active = p.filter((x) => x.st === 'active');
-    const pendingTemps = active.filter((x) => !tod(x, today).length);
-    const readyVisits = active.filter((x) => tod(x, today).length && !vis(x, today));
-    const awaitApprove = active.filter((x) => rdy(x) && !x.conf);
-    const readyDisch = active.filter((x) => rdy(x) && x.conf);
-
-    const specs = [
-      {
-        role: 'nurse',
-        kind: 'reminder',
-        key: `${today}:nurse:temp`,
-        count: pendingTemps.length,
-        msg: `Reminder: ${pendingTemps.length} patient(s) still awaiting today's temperature check (e.g. Bed ${pendingTemps.slice(0, 5).map((x) => x.bed).join(', ')}).`,
-      },
-      {
-        role: 'doctor',
-        kind: 'reminder',
-        key: `${today}:doctor:visit`,
-        count: readyVisits.length,
-        msg: `Reminder: ${readyVisits.length} measured patient(s) ready for doctor visit today.`,
-      },
-      {
-        role: 'doctor',
-        kind: 'reminder',
-        key: `${today}:doctor:approve`,
-        count: awaitApprove.length,
-        msg: `Reminder: ${awaitApprove.length} patient(s) have 3 fever-free days awaiting discharge approval.`,
-      },
-      {
-        role: 'admin',
-        kind: 'reminder',
-        key: `${today}:admin:disch`,
-        count: readyDisch.length,
-        msg: `Reminder: ${readyDisch.length} doctor-approved patient(s) waiting to be discharged.`,
-      },
-    ];
+    const specs = buildReminderSpecs(p, td());
 
     const findStmt = this.db.prepare('SELECT id, message, is_read FROM notifications WHERE dedup_key = ?');
     const insStmt = this.db.prepare(

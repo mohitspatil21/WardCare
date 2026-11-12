@@ -76,6 +76,109 @@ const PAST_PATIENTS = [
   { name: 'Narayanan Menon', age: 70, g: 'M', admAgo: 9, outAgo: 1, st: 'disch', temps: [38.9, 38.3, 37.8, 37.3, 36.9, 36.7] },
 ];
 
+/** Build deterministic initial patients, temperatures, visits, notifications, and logs. */
+export function buildSeedDataset() {
+  const nurses = ['Priya (Nurse)', 'Anil (Nurse)'];
+  const doctors = ['Dr. Mehta', 'Dr. Rao'];
+  const today = td();
+  const now = Date.now();
+  const patients = [];
+  const notifications = [];
+
+  for (let idx = 0; idx < ACTIVE_PATIENTS.length; idx++) {
+    const p = ACTIVE_PATIENTS[idx];
+    const isApproved = p.group === 'D';
+    const nurseName = nurses[idx % nurses.length];
+    const docName = p.byDoc || doctors[idx % doctors.length];
+    const t = [];
+    const v = [];
+
+    for (let ti = 0; ti < p.temps.length; ti++) {
+      const offsetDays = p.group === 'A' ? p.temps.length - ti : p.temps.length - 1 - ti;
+      const dStr = bk(offsetDays);
+      const hr = String(8 + ((idx + ti) % 3)).padStart(2, '0');
+      const mn = String(((idx * 7 + ti * 13) % 50) + 10).padStart(2, '0');
+      t.push({ d: dStr, c: p.temps[ti], at: `${hr}:${mn}`, by: nurseName });
+
+      const isToday = dStr === today;
+      if (!isToday || p.group === 'C' || p.group === 'D') {
+        const vHr = String(10 + ((idx + ti) % 4)).padStart(2, '0');
+        const note = isApproved && isToday
+          ? '3 fever-free days verified; approved for discharge'
+          : p.temps[ti] >= 38.0
+            ? 'Fever managed with antipyretics and fluids'
+            : 'Vitals stable, continue observation';
+        v.push({ d: dStr, at: `${vHr}:${mn}`, by: docName, note });
+      }
+    }
+
+    patients.push({
+      name: p.name,
+      age: p.age,
+      gender: p.g,
+      phone: p.phone,
+      notes: p.notes,
+      bed: p.bed,
+      adm: bk(p.stay - 1),
+      st: 'active',
+      out: null,
+      conf: isApproved,
+      confBy: isApproved ? p.byDoc : null,
+      t,
+      v,
+      _group: p.group,
+    });
+  }
+
+  for (let idx = 0; idx < PAST_PATIENTS.length; idx++) {
+    const p = PAST_PATIENTS[idx];
+    const cleanName = p.name.charAt(0).toUpperCase() + p.name.slice(1);
+    const docName = doctors[idx % doctors.length];
+    const nurseName = nurses[idx % nurses.length];
+    const t = [];
+    const v = [];
+    for (let ti = 0; ti < p.temps.length; ti++) {
+      const dStr = bk(p.admAgo - ti);
+      t.push({ d: dStr, c: p.temps[ti], at: '08:30', by: nurseName });
+      v.push({
+        d: dStr,
+        at: '11:15',
+        by: docName,
+        note: p.st === 'dead' && ti === p.temps.length - 1 ? 'Critical deterioration noted' : 'Daily clinical review completed',
+      });
+    }
+    patients.push({
+      name: cleanName,
+      age: p.age,
+      gender: p.g,
+      phone: `98900-${String(10000 + idx * 137)}`,
+      notes: p.st === 'disch' ? 'Recovered & discharged after 3 fever-free days' : 'Deceased despite ICU escalation',
+      bed: 0,
+      adm: bk(p.admAgo),
+      st: p.st,
+      out: bk(p.outAgo),
+      conf: p.st === 'disch',
+      confBy: p.st === 'disch' ? docName : null,
+      t,
+      v,
+      _group: 'PAST',
+    });
+  }
+
+  const logs = [
+    { ts: Math.round(now - 3600000 * 5), u: 'Sunita (Admin)', a: 'Admitted Zoya Akhtar to bed 22' },
+    { ts: Math.round(now - 3600000 * 4), u: 'Priya (Nurse)', a: 'Recorded morning temperatures for Beds 9–16 & 29–32' },
+    { ts: Math.round(now - 3600000 * 3), u: 'Anil (Nurse)', a: 'Recorded morning temperatures for Beds 17–28' },
+    { ts: Math.round(now - 3600000 * 2.5), u: 'Dr. Mehta', a: 'Completed rounds for Beds 17–22 & approved discharge for Shalini Gupta (Bed 29)' },
+    { ts: Math.round(now - 3600000 * 2), u: 'Dr. Rao', a: 'Completed rounds for Beds 23–28 & approved discharge for Rameshwar Das (Bed 30)' },
+    { ts: Math.round(now - 3600000 * 1.2), u: 'Dr. Mehta', a: 'Approved discharge for Nandini Pillai (Bed 31)' },
+    { ts: Math.round(now - 3600000 * 0.7), u: 'Dr. Rao', a: 'Approved discharge for Devendra Chauhan (Bed 32)' },
+    { ts: Math.round(now - 1800000), u: 'Sunita (Admin)', a: 'Discharged Narayanan Menon from previous ward cycle' },
+  ];
+
+  return { patients, notifications, logs };
+}
+
 /** Populate initial realistic clinical records into an empty WardCare SQLite database once. */
 export function seedInitialWard(db) {
   const alreadySeeded = db.prepare("SELECT 1 FROM ward_meta WHERE key = 'seeded'").get();
@@ -86,137 +189,34 @@ export function seedInitialWard(db) {
     return false;
   }
 
+  const { patients, logs } = buildSeedDataset();
   const insPatient = db.prepare(
     'INSERT INTO patients (name, age, gender, phone, notes, bed, adm, st, out_date, conf, conf_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  const insTemp = db.prepare(
-    'INSERT INTO temperatures (patient_id, d, c, at, by_user) VALUES (?, ?, ?, ?, ?)'
-  );
-  const insVisit = db.prepare(
-    'INSERT INTO visits (patient_id, d, at, by_user, note) VALUES (?, ?, ?, ?, ?)'
-  );
-  const insNotif = db.prepare(
-    'INSERT INTO notifications (role, patient_id, kind, message, created_at) VALUES (?, ?, ?, ?, ?)'
-  );
+  const insTemp = db.prepare('INSERT INTO temperatures (patient_id, d, c, at, by_user) VALUES (?, ?, ?, ?, ?)');
+  const insVisit = db.prepare('INSERT INTO visits (patient_id, d, at, by_user, note) VALUES (?, ?, ?, ?, ?)');
+  const insNotif = db.prepare('INSERT INTO notifications (role, patient_id, kind, message, created_at) VALUES (?, ?, ?, ?, ?)');
   const insLog = db.prepare('INSERT INTO audit_log (ts, u, a) VALUES (?, ?, ?)');
-
-  const nurses = ['Priya (Nurse)', 'Anil (Nurse)'];
-  const doctors = ['Dr. Mehta', 'Dr. Rao'];
-  const today = td();
   const now = Date.now();
 
   db.exec('BEGIN IMMEDIATE');
   try {
-    for (let idx = 0; idx < ACTIVE_PATIENTS.length; idx++) {
-      const p = ACTIVE_PATIENTS[idx];
-      const admDate = bk(p.stay - 1);
-      const isApproved = p.group === 'D';
+    for (let idx = 0; idx < patients.length; idx++) {
+      const p = patients[idx];
       const res = insPatient.run(
-        p.name,
-        p.age,
-        p.g,
-        p.phone,
-        p.notes,
-        p.bed,
-        admDate,
-        'active',
-        null,
-        isApproved ? 1 : 0,
-        isApproved ? p.byDoc : null
+        p.name, p.age, p.gender, p.phone, p.notes, p.bed, p.adm, p.st, p.out, p.conf ? 1 : 0, p.confBy
       );
       const pid = Number(res.lastInsertRowid);
-      const nurseName = nurses[idx % nurses.length];
-      const docName = p.byDoc || doctors[idx % doctors.length];
+      for (const tp of p.t) insTemp.run(pid, tp.d, tp.c, tp.at, tp.by);
+      for (const vs of p.v) insVisit.run(pid, vs.d, vs.at, vs.by, vs.note);
 
-      // Group A has readings up to yesterday (missing today); B/C/D include today
-      for (let ti = 0; ti < p.temps.length; ti++) {
-        const offsetDays = p.group === 'A' ? p.temps.length - ti : p.temps.length - 1 - ti;
-        const dStr = bk(offsetDays);
-        const hr = String(8 + ((idx + ti) % 3)).padStart(2, '0');
-        const mn = String(((idx * 7 + ti * 13) % 50) + 10).padStart(2, '0');
-        insTemp.run(pid, dStr, p.temps[ti], `${hr}:${mn}`, nurseName);
-
-        // Prior days always visited; today visited only for Group C and D
-        const isToday = dStr === today;
-        if (!isToday || p.group === 'C' || p.group === 'D') {
-          const vHr = String(10 + ((idx + ti) % 4)).padStart(2, '0');
-          const note = isApproved && isToday
-            ? '3 fever-free days verified; approved for discharge'
-            : p.temps[ti] >= 38.0
-              ? 'Fever managed with antipyretics and fluids'
-              : 'Vitals stable, continue observation';
-          insVisit.run(pid, dStr, `${vHr}:${mn}`, docName, note);
-        }
-      }
-
-      if (p.group === 'B_ELIG') {
-        insNotif.run(
-          'doctor',
-          pid,
-          'eligible',
-          `${p.name} (Bed ${p.bed}) completed 3 fever-free days and is eligible for discharge.`,
-          now - (idx + 1) * 60000
-        );
-      } else if (p.group === 'D') {
-        insNotif.run(
-          'admin',
-          pid,
-          'discharge_approved',
-          `${p.name} (Bed ${p.bed}) was approved for discharge by ${p.byDoc}.`,
-          now - (idx + 1) * 45000
-        );
+      if (p._group === 'B_ELIG') {
+        insNotif.run('doctor', pid, 'eligible', `${p.name} (Bed ${p.bed}) completed 3 fever-free days and is eligible for discharge.`, now - (idx + 1) * 60000);
+      } else if (p._group === 'D') {
+        insNotif.run('admin', pid, 'discharge_approved', `${p.name} (Bed ${p.bed}) was approved for discharge by ${p.confBy}.`, now - (idx + 1) * 45000);
       }
     }
-
-    for (let idx = 0; idx < PAST_PATIENTS.length; idx++) {
-      const p = PAST_PATIENTS[idx];
-      const cleanName = p.name.charAt(0).toUpperCase() + p.name.slice(1);
-      const admDate = bk(p.admAgo);
-      const outDate = bk(p.outAgo);
-      const docName = doctors[idx % doctors.length];
-      const nurseName = nurses[idx % nurses.length];
-      const res = insPatient.run(
-        cleanName,
-        p.age,
-        p.g,
-        `98900-${String(10000 + idx * 137)}`,
-        p.st === 'disch' ? 'Recovered & discharged after 3 fever-free days' : 'Deceased despite ICU escalation',
-        0,
-        admDate,
-        p.st,
-        outDate,
-        p.st === 'disch' ? 1 : 0,
-        p.st === 'disch' ? docName : null
-      );
-      const pid = Number(res.lastInsertRowid);
-
-      for (let ti = 0; ti < p.temps.length; ti++) {
-        const dStr = bk(p.admAgo - ti);
-        insTemp.run(pid, dStr, p.temps[ti], '08:30', nurseName);
-        insVisit.run(
-          pid,
-          dStr,
-          '11:15',
-          docName,
-          p.st === 'dead' && ti === p.temps.length - 1 ? 'Critical deterioration noted' : 'Daily clinical review completed'
-        );
-      }
-    }
-
-    const recentLogs = [
-      [now - 3600000 * 5, 'Sunita (Admin)', 'Admitted Zoya Akhtar to bed 22'],
-      [now - 3600000 * 4, 'Priya (Nurse)', 'Recorded morning temperatures for Beds 9–16 & 29–32'],
-      [now - 3600000 * 3, 'Anil (Nurse)', 'Recorded morning temperatures for Beds 17–28'],
-      [now - 3600000 * 2.5, 'Dr. Mehta', 'Completed rounds for Beds 17–22 & approved discharge for Shalini Gupta (Bed 29)'],
-      [now - 3600000 * 2, 'Dr. Rao', 'Completed rounds for Beds 23–28 & approved discharge for Rameshwar Das (Bed 30)'],
-      [now - 3600000 * 1.2, 'Dr. Mehta', 'Approved discharge for Nandini Pillai (Bed 31)'],
-      [now - 3600000 * 0.7, 'Dr. Rao', 'Approved discharge for Devendra Chauhan (Bed 32)'],
-      [now - 1800000, 'Sunita (Admin)', 'Discharged Narayanan Menon from previous ward cycle'],
-    ];
-    for (const [ts, u, a] of recentLogs) {
-      insLog.run(Math.round(ts), u, a);
-    }
-
+    for (const l of logs) insLog.run(l.ts, l.u, l.a);
     db.prepare("INSERT OR REPLACE INTO ward_meta (key, val) VALUES ('seeded', '1')").run();
     db.exec('COMMIT');
     return true;

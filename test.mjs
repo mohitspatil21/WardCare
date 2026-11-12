@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { createAppHandler, createAppServer } from './server.js';
+import { JsonWardStore } from './json-store.mjs';
 import { MAX_PAST_RECORDS, bk, td } from './ward-logic.mjs';
 
 function tmpDbPath() {
@@ -318,6 +319,44 @@ test('Serverless handler supports pre-parsed bodies, HTTPS cookies, and polling-
     app.close();
     for (const suffix of ['', '-wal', '-shm']) {
       try { fs.unlinkSync(dbPath + suffix); } catch {}
+    }
+  }
+});
+
+test('JsonWardStore fallback supports seeding, clinical actions, and Vercel entrypoint GET /', async () => {
+  const store = new JsonWardStore(':memory:', { seed: true });
+  const admin = store.authenticate('sunita', 'admin123');
+  const nurse = store.authenticate('priya', 'nurse123');
+  assert.equal(admin?.r, 'admin');
+  const st = store.getState('nurse');
+  assert.equal(st.p.filter((x) => x.st === 'active').length, 32);
+  assert.equal(st.stats.s, 19);
+  assert.equal(st.stats.d, 3);
+  const p1 = st.p.find((x) => x.bed === 1);
+  const updated = store.recordTemp(p1.id, nurse, 37.2);
+  assert.equal(updated.t[updated.t.length - 1].c, 37.2);
+  assert.ok(store.getDailyReport(td()).rows.length >= 32);
+
+  // Also simulate importing api/index.mjs with WARD_DB pointing to temp path
+  const tmpDb = tmpDbPath();
+  process.env.WARD_DB = tmpDb;
+  try {
+    const { default: vercelHandler } = await import('./api/index.mjs');
+    let status = 0;
+    let body = '';
+    await vercelHandler(
+      { method: 'GET', url: '/', headers: {} },
+      {
+        writeHead(s) { status = s; },
+        end(c) { body = Buffer.isBuffer(c) ? c.toString('utf8') : String(c ?? ''); },
+      }
+    );
+    assert.equal(status, 200);
+    assert.match(body, /Ward<i>Care<\/i>/);
+  } finally {
+    delete process.env.WARD_DB;
+    for (const suffix of ['', '-wal', '-shm', '.json']) {
+      try { fs.unlinkSync(tmpDb + suffix); } catch {}
     }
   }
 });

@@ -2,11 +2,20 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AppError, WardStore } from './db.mjs';
+import { AppError, createWardStore } from './db.mjs';
 import { CAP, buildExcelReport, buildPdfReport, canRole, td } from './ward-logic.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HTML_PATH = path.join(__dirname, 'ward-care.html');
+function resolveHtmlPath() {
+  for (const candidate of [
+    path.join(__dirname, 'ward-care.html'),
+    path.join(process.cwd(), 'ward-care.html'),
+    path.join(__dirname, '..', 'ward-care.html'),
+  ]) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(__dirname, 'ward-care.html');
+}
 const MAX_BODY_BYTES = 64 * 1024;
 const COOKIE_NAME = 'wc_token';
 
@@ -87,8 +96,8 @@ export function createAppHandler({
   seed = true,
   enableTimers = !process.env.VERCEL,
 } = {}) {
-  const store = new WardStore(dbPath, { seed });
-  const html = fs.readFileSync(HTML_PATH, 'utf8');
+  const store = createWardStore(dbPath, { seed });
+  const html = fs.readFileSync(resolveHtmlPath(), 'utf8');
   const sseClients = new Set();
 
   function broadcastUpdate() {

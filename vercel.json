@@ -1,14 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/index.mjs": {
+    "server.js": {
       "includeFiles": "ward-care.html"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.mjs"
-    }
-  ]
+  }
 }

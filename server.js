@@ -359,6 +359,26 @@ export function createAppServer(opts = {}) {
   return { server, store };
 }
 
+let cachedServerless;
+
+/** Default Vercel Node.js backend handler entrypoint. */
+export default async function handler(req, res) {
+  try {
+    if (!cachedServerless) {
+      cachedServerless = createAppHandler({
+        dbPath: process.env.WARD_DB || (process.env.VERCEL ? '/tmp/ward-care.db' : path.join(__dirname, 'ward-care.db')),
+        seed: true,
+        enableTimers: !process.env.VERCEL,
+      });
+    }
+    return await cachedServerless.handler(req, res);
+  } catch (err) {
+    console.error('WardCare handler error:', err);
+    if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: err?.message || 'Server initialization failed' }));
+  }
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT) || 8765;
   const { server } = createAppServer();

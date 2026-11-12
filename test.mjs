@@ -337,11 +337,11 @@ test('JsonWardStore fallback supports seeding, clinical actions, and Vercel entr
   assert.equal(updated.t[updated.t.length - 1].c, 37.2);
   assert.ok(store.getDailyReport(td()).rows.length >= 32);
 
-  // Also simulate importing api/index.mjs with WARD_DB pointing to temp path
+  // Also simulate importing server.js default Vercel entrypoint with WARD_DB pointing to temp path
   const tmpDb = tmpDbPath();
   process.env.WARD_DB = tmpDb;
   try {
-    const { default: vercelHandler } = await import('./api/index.mjs');
+    const { default: vercelHandler } = await import('./server.js');
     let status = 0;
     let body = '';
     await vercelHandler(
